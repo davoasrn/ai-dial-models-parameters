@@ -1,21 +1,37 @@
-from task.app.main import run
+from task.app.client import DialClient
+from task.models.conversation import Conversation
+from task.models.message import Message
+from task.models.role import Role
 
-# TODO:
-#  Try `frequency_penalty` parameter.
-#  Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's
-#  likelihood to repeat the same line verbatim. Higher values == less repetitive text.
-#       Range: -2.0 to 2.0
-#       Default: 0.0
-#  User massage: Explain the water cycle in simple terms for children
+DIAL_ENDPOINT = "https://ai-proxy.lab.epam.com/openai/deployments/{model}/chat/completions"
+DEFAULT_SYSTEM_PROMPT = "You are an assistant who answers concisely and informatively."
+USER_QUESTION = "Explain the water cycle in simple terms for children."
 
-run(
-    deployment_name='gpt-4o',
-    print_only_content=True,
-    # TODO:
-    #  Use `frequency_penalty` parameter with different range (-2.0 to 2.0).
-)
+MODEL = "gpt-4o"
 
-# Pay attention that when we set for `gpt-4o` frequency_penalty as -2.0 - the request is running too long,
-# and in the result we can get something strange (such as repetitive words in the end).
-# Copy the results and then check with separate request and ask LLM where is more repetitive blocks in texts.
-# For Anthropic and Gemini this parameter will be ignored
+PENALTIES = [
+    (-2.0, 300),   
+    ( 0.0, None),  
+    ( 1.0, None),  
+    ( 2.0, None),  
+]
+
+for penalty, max_tok in PENALTIES:
+    print("\n" + "#" * 108)
+    label = f"max_tokens={max_tok}" if max_tok else "no max_tokens cap"
+    print(f"# MODEL: {MODEL}  |  frequency_penalty={penalty}  |  {label}")
+    print("#" * 108)
+
+    client = DialClient(endpoint=DIAL_ENDPOINT, deployment_name=MODEL)
+    conversation = Conversation()
+    conversation.add_message(Message(Role.SYSTEM, DEFAULT_SYSTEM_PROMPT))
+    conversation.add_message(Message(Role.USER, USER_QUESTION))
+
+    kwargs = dict(
+        print_request=False,
+        print_only_content=True,   
+    )
+    if max_tok:
+        kwargs["max_tokens"] = max_tok
+
+    client.get_completion(messages=conversation.get_messages(), **kwargs)
